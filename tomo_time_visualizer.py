@@ -200,24 +200,50 @@ class CompareVisualizer(TimeVisualizer):
         for ipw in [self.ipw_x, self.ipw_y, self.ipw_ref_x, self.ipw_ref_y]:
             ipw.ipw.interaction = not ipw.ipw.interaction  
 
-def picker_callback(picker_obj):
-    position = picker_obj.pick_position
-    grains.append(position)
-    gg = np.array(grains).T
-    del tv.pts
-    tv.pts = mlab.points3d(gg[0], gg[1], gg[2], scale_factor=10, color=(1,0,0))    
 
 
 class ClickVisualizer(CompareVisualizer):
 
     rt_grains = []
     ht_grains = []
+    d = {}
 
     def __init__(self, file_pattern, reference_file, preload=True):
         CompareVisualizer.__init__(self, file_pattern, reference_file, preload=True)
-        self.reference_scene.mayavi_scene.on_mouse_pick(picker_callback, button='Middle', type='world')
-        self.slices_scene.mayavi_scene.on_mouse_pick(picker_callback, button='Middle', type='world')
-        self.pts = mlab.points3d(1, 1, 1, scale_factor=0, figure=self.reference_scene.mayavi_scene)
+        self.pts_ref = mlab.points3d(0, 0, 0, scale_factor=8, color=(1, 0, 0),\
+            figure=self.reference_scene.mayavi_scene)
+        self.pts_sl = mlab.points3d(0, 0, 0, scale_factor=8, color=(1, 0, 0),\
+            figure=self.slices_scene.mayavi_scene)
 
-grains = []
-tv = ClickVisualizer('/media/data_linux/tomography/090228/volumes/heated_sample/glass_00[0, 1, 2]_smooth.h5', '/media/data_linux/tomography/090228/volumes/room_temperature/rt_smooth.h5')
+    def _select_points_changed(self):
+        ipw_list = [self.ipw_ref_x, self.ipw_ref_y, self.ipw_x, self.ipw_y]
+        def move_view_ref(obj, evt):
+            position = obj.GetCurrentCursorPosition()
+            if len(self.rt_grains)>len(self.ht_grains):
+                print "update high-temperature grains first"
+                return
+            self.rt_grains.append(position)
+            rt = np.array(self.rt_grains).T
+            self.pts_ref.mlab_source.reset(x=rt[0], y=rt[1], z=rt[2])
+        def move_view_sl(obj, evt):
+            position = obj.GetCurrentCursorPosition()
+            if len(self.ht_grains)>len(self.rt_grains):
+                print "update room-temperature grains first"
+                return
+            self.ht_grains.append(position)
+            ht = np.array(self.ht_grains).T
+            self.pts_sl.mlab_source.reset(x=ht[0], y=ht[1], z=ht[2])
+        for i, ipw in enumerate(ipw_list):
+            if self.select_points:
+                ipw.ipw.left_button_action = 0
+                if i<2:
+                    self.d[i] = ipw.ipw.add_observer('StartInteractionEvent', move_view_ref)
+                else:
+                    self.d[i] = ipw.ipw.add_observer('StartInteractionEvent', move_view_sl)
+            else:
+                ipw.ipw.left_button_action = 1
+                ipw.ipw.remove_observer(self.d[i])
+
+
+
+tv = ClickVisualizer('/media/data_linux/tomography/090228/volumes/heated_sample/glass_00[0, 1]_smooth.h5', '/media/data_linux/tomography/090228/volumes/room_temperature/rt_smooth.h5')
