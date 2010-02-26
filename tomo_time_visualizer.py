@@ -210,10 +210,12 @@ class ClickVisualizer(CompareVisualizer):
 
     def __init__(self, file_pattern, reference_file, preload=True):
         CompareVisualizer.__init__(self, file_pattern, reference_file, preload=True)
-        self.pts_ref = mlab.points3d(0, 0, 0, scale_factor=8, color=(1, 0, 0),\
-            figure=self.reference_scene.mayavi_scene)
-        self.pts_sl = mlab.points3d(0, 0, 0, scale_factor=8, color=(1, 0, 0),\
-            figure=self.slices_scene.mayavi_scene)
+        self.pts_ref = mlab.points3d(0, 0, 0, scale_factor=8,\
+            colormap='gist_rainbow',\
+            figure=self.reference_scene.mayavi_scene, scale_mode='none')
+        self.pts_sl = mlab.points3d(0, 0, 0, scale_factor=8,\
+            colormap='gist_rainbow',\
+            figure=self.slices_scene.mayavi_scene, scale_mode='none')
 
     def _select_points_changed(self):
         ipw_list = [self.ipw_ref_x, self.ipw_ref_y, self.ipw_x, self.ipw_y]
@@ -224,7 +226,8 @@ class ClickVisualizer(CompareVisualizer):
                 return
             self.rt_grains.append(position)
             rt = np.array(self.rt_grains).T
-            self.pts_ref.mlab_source.reset(x=rt[0], y=rt[1], z=rt[2])
+            self.pts_ref.mlab_source.reset(x=rt[0], y=rt[1], z=rt[2],\
+                    scalars=(np.arange(len(rt[0]))%11))
         def move_view_sl(obj, evt):
             position = obj.GetCurrentCursorPosition()
             if len(self.ht_grains)>len(self.rt_grains):
@@ -232,7 +235,8 @@ class ClickVisualizer(CompareVisualizer):
                 return
             self.ht_grains.append(position)
             ht = np.array(self.ht_grains).T
-            self.pts_sl.mlab_source.reset(x=ht[0], y=ht[1], z=ht[2])
+            self.pts_sl.mlab_source.reset(x=ht[0], y=ht[1], z=ht[2],\
+                    scalars=(np.arange(len(ht[0]))%11))
         for i, ipw in enumerate(ipw_list):
             if self.select_points:
                 ipw.ipw.left_button_action = 0
