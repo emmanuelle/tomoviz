@@ -200,6 +200,10 @@ class CompareVisualizer(TimeVisualizer):
         for ipw in [self.ipw_x, self.ipw_y, self.ipw_ref_x, self.ipw_ref_y]:
             ipw.ipw.interaction = not ipw.ipw.interaction  
 
+    def _update_view_fired(self):
+        self.plot()
+        self.plot_reference()
+
 
 
 class ClickVisualizer(CompareVisualizer):
@@ -210,12 +214,25 @@ class ClickVisualizer(CompareVisualizer):
 
     def __init__(self, file_pattern, reference_file, preload=True):
         CompareVisualizer.__init__(self, file_pattern, reference_file, preload=True)
-        self.pts_ref = mlab.points3d(0, 0, 0, scale_factor=8,\
+        self.s_ref = mlab.pipeline.scalar_scatter([0], [0], [0],\
+             figure=self.reference_scene.mayavi_scene)
+        self.geom_ref = mlab.pipeline.user_defined(self.s_ref, filter='GeometryFilter', name='geom')
+        self.geom_ref.filter.extent = [50, 200, 50, 200, 50, 200,]
+        self.geom_ref.filter.extent_clipping = True
+        self.clean_ref = mlab.pipeline.user_defined(self.geom_ref, filter='CleanPolyData',\
+                name='clean_data')
+        self.glyphs_ref = mlab.pipeline.glyph(self.clean_ref, scale_factor=8,\
             colormap='gist_rainbow',\
-            figure=self.reference_scene.mayavi_scene, scale_mode='none')
-        self.pts_sl = mlab.points3d(0, 0, 0, scale_factor=8,\
-            colormap='gist_rainbow',\
-            figure=self.slices_scene.mayavi_scene, scale_mode='none')
+            scale_mode='none')
+        self.s_sl = mlab.pipeline.scalar_scatter([0], [0], [0],\
+            figure=self.slices_scene.mayavi_scene)
+        self.geom_sl = mlab.pipeline.user_defined(self.s_sl, filter='GeometryFilter', name='geom')
+        self.geom_sl.filter.extent = [50, 200, 50, 200, 50, 200,]
+        self.geom_sl.filter.extent_clipping = True
+        self.clean_sl = mlab.pipeline.user_defined(self.geom_sl, filter='CleanPolyData',\
+                name='clean_data')
+        self.glyphs_sl = mlab.pipeline.glyph(self.clean_sl, scale_factor=8,\
+            colormap='gist_rainbow', scale_mode='none')
 
     def _select_points_changed(self):
         ipw_list = [self.ipw_ref_x, self.ipw_ref_y, self.ipw_x, self.ipw_y]
@@ -226,7 +243,7 @@ class ClickVisualizer(CompareVisualizer):
                 return
             self.rt_grains.append(position)
             rt = np.array(self.rt_grains).T
-            self.pts_ref.mlab_source.reset(x=rt[0], y=rt[1], z=rt[2],\
+            self.s_ref.mlab_source.reset(x=rt[0], y=rt[1], z=rt[2],\
                     scalars=(np.arange(len(rt[0]))%11))
         def move_view_sl(obj, evt):
             position = obj.GetCurrentCursorPosition()
@@ -235,7 +252,7 @@ class ClickVisualizer(CompareVisualizer):
                 return
             self.ht_grains.append(position)
             ht = np.array(self.ht_grains).T
-            self.pts_sl.mlab_source.reset(x=ht[0], y=ht[1], z=ht[2],\
+            self.s_sl.mlab_source.reset(x=ht[0], y=ht[1], z=ht[2],\
                     scalars=(np.arange(len(ht[0]))%11))
         for i, ipw in enumerate(ipw_list):
             if self.select_points:
@@ -250,4 +267,5 @@ class ClickVisualizer(CompareVisualizer):
 
 
 
-tv = ClickVisualizer('/media/data_linux/tomography/090228/volumes/heated_sample/glass_00[0, 1]_smooth.h5', '/media/data_linux/tomography/090228/volumes/room_temperature/rt_smooth.h5')
+#tv = ClickVisualizer('/media/data_linux/tomography/090228/volumes/heated_sample/glass_00[0, 1]_smooth.h5', '/media/data_linux/tomography/090228/volumes/room_temperature/rt_smooth.h5')
+tv = ClickVisualizer('/media/data_linux/tomography/090228/volumes/heated_sample/glass_00[0, 1]_smooth.h5', '/home/gouillar/travail/2009/signal_processing/tomography/tomo_work/notebook/2010-03/labels_tr_temp.h5')
