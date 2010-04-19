@@ -205,8 +205,120 @@ class CompareVisualizer(TimeVisualizer):
         self.plot_reference()
 
 
+class ClickVisualizer(HasTraits): 
 
-class ClickVisualizer(CompareVisualizer):
+    slices_scene = Instance(MlabSceneModel, ())
+    xslice = Tuple((1, 500, 2), desc='x slice', label='x slice')
+    yslice = Tuple((1, 490, 2), desc='y slice', label='y slice')
+    zslice = Tuple((1, 490, 2), desc='z slice', label='z slice')
+    update_volume = Button()
+    tuped = TupleEditor(cols=1)
+    select_points = Bool(False, label='Point selection')
+    remove_point = Bool(False, label='Remove marker')
+    grains = []
+    d = {}
+
+    panel_group =  Group(
+                Group(
+                    '_', 
+                         Item('select_points'),
+                         Item('remove_point'),
+                         label='Points', dock='tab'),
+                Group(
+                         Item('xslice', editor=tuped),   
+                         Item('yslice', editor=tuped),
+                         Item('zslice', editor=tuped),
+                         Item('update_volume', show_label=False),
+                         label='Volume', dock='tab'),
+                         layout = 'tabbed',
+                         )
+    view = View(HGroup(
+                Item('slices_scene', height=550,
+                    show_label=False,
+                    editor=SceneEditor(scene_class=MayaviScene)),
+                panel_group,
+                ),
+                resizable=True, title='Glass batch tomography'
+                         )
+    def __init__(self, filename):
+        self.image = TomoImage(filename)
+        self.image.open()
+        self.data = self.image.data[:]
+        self.configure_traits()
+        self.plot()
+        self.s = mlab.pipeline.scalar_scatter([0], [0], [0],\
+             figure=self.slices_scene.mayavi_scene)
+        self.geom_ref = mlab.pipeline.user_defined(self.s, filter='GeometryFilter', name='geom')
+        self.geom_ref.filter.extent = [0, 250, 0, 250, 0, 250,]
+        self.geom_ref.filter.extent_clipping = True
+        self.clean_ref = mlab.pipeline.user_defined(self.geom_ref, filter='CleanPolyData',\
+                name='clean_data')
+        self.glyphs_ref = mlab.pipeline.glyph(self.clean_ref, scale_factor=8,\
+            colormap='jet',\
+            scale_mode='none')
+
+    def _select_points_changed(self):
+        ipw_list = [self.ipw_x, self.ipw_y]
+        def move_view_ref(obj, evt):
+            position = obj.GetCurrentCursorPosition()
+            self.grains.append(position)
+            rt = (np.array(self.grains).T).astype(np.int)
+            self.s.mlab_source.reset(x=rt[0], y=rt[1], z=rt[2],\
+                    scalars=self.data[rt[0], rt[1], rt[2]])
+        for i, ipw in enumerate(ipw_list):
+            if self.select_points:
+                ipw.ipw.left_button_action = 0
+                if i<2:
+                    self.d[i] = ipw.ipw.add_observer('StartInteractionEvent', move_view_ref)
+                else:
+                    self.d[i] = ipw.ipw.add_observer('StartInteractionEvent', move_view_sl)
+            else:
+                ipw.ipw.left_button_action = 1
+                ipw.ipw.remove_observer(self.d[i])
+
+    def _remove_point_changed(self):
+        def picker_callback(picker):
+            glyph_points = self.glyphs_ref.glyph.glyph_source.glyph_source.output.points.to_array()
+            if picker.actor in self.glyphs_ref.actor.actors:
+            # Find which data point corresponds to the point picked:
+            # we have to account for the fact that each data point is
+            # represented by a glyph with several points 
+                point_id = picker.point_id/glyph_points.shape[0]
+            # If the no points have been selected, we have '-1'
+            if point_id != -1 and self.remove_point:
+                # Retrieve the coordinnates coorresponding to that data
+                # point
+                self.remove_point = False
+                self.grains.pop(point_id)
+                rt = (np.array(self.grains).T).astype(np.int)
+                self.s.mlab_source.reset(x=rt[0], y=rt[1], z=rt[2],\
+                    scalars=self.data[rt[0], rt[1], rt[2]])
+        picker = self.slices_scene.mayavi_scene.on_mouse_pick(picker_callback)
+        picker.tolerance = 0.01
+
+
+    def plot(self):
+        mlab.clf(figure=self.slices_scene.mayavi_scene)
+        self.slices_scene.scene.background = (0, 0, 0)
+        self.s = mlab.pipeline.scalar_field(
+            self.image.data[slice(*self.xslice),
+                                            slice(*self.yslice),
+                                            slice(*self.zslice)],
+                    figure=self.slices_scene.mayavi_scene)
+        self.ipw_x = mlab.pipeline.image_plane_widget(self.s,
+                figure=self.slices_scene.mayavi_scene,
+                plane_orientation = 'x_axes')
+        self.ipw_y = mlab.pipeline.image_plane_widget(self.s,
+                figure=self.slices_scene.mayavi_scene,
+                plane_orientation = 'y_axes')
+        self.ipw_x.parent.scalar_lut_manager.lut_mode = 'jet'
+
+    def _update_volume_fired(self):
+        self.plot()
+
+
+
+class ClickCompareVisualizer(CompareVisualizer):
 
     rt_grains = []
     ht_grains = []
@@ -267,5 +379,5 @@ class ClickVisualizer(CompareVisualizer):
 
 
 
-#tv = ClickVisualizer('/media/data_linux/tomography/090228/volumes/heated_sample/glass_00[0, 1]_smooth.h5', '/media/data_linux/tomography/090228/volumes/room_temperature/rt_smooth.h5')
-tv = ClickVisualizer('/media/data_linux/tomography/090228/volumes/heated_sample/glass_00[0, 1]_smooth.h5', '/home/gouillar/travail/2009/signal_processing/tomography/tomo_work/notebook/2010-03/labels_tr_temp.h5')
+#tv = ClickCompareVisualizer('/media/data_linux/tomography/090228/volumes/heated_sample/glass_00[0, 1]_smooth.h5', '/media/data_linux/tomography/090228/volumes/room_temperature/rt_smooth.h5')
+#tv = ClickVisualizer('/media/data_linux/tomography/090228/volumes/heated_sample/glass_00[0, 1]_smooth.h5', '/home/gouillar/travail/2009/signal_processing/tomography/tomo_work/notebook/2010-03/labels_tr_temp.h5')
