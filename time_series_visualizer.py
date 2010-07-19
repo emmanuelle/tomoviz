@@ -2,7 +2,6 @@ import numpy as np
 import scipy
 from glob import glob
 from threading import Thread
-from time import sleep
 from enthought.mayavi import mlab
 from enthought.traits.api import HasTraits, Instance, Array, \
     File, Bool, Int, Enum, Button, Tuple, on_trait_change
@@ -21,14 +20,10 @@ class ThreadedAction(Thread):
         self.dataset = dataset
 
     def run(self):
-        if self.dataset.preloaded:
-            new_data = self.dataset.data[self.dataset.time]
-        else:
-            slices = self.dataset.slices
-            new_data = np.load(self.dataset.images[self.dataset.time])[slices]
+        slices = self.dataset.slices
+        new_data = self.dataset[self.dataset.time][slices]
         GUI.invoke_later(setattr, self.scalar_field.mlab_source, 'scalars',
         new_data)
-        print 'done.'
 
 class DataSet(object):
 
@@ -43,9 +38,14 @@ class DataSet(object):
     def load_data(self, file_slice):
         self.data = []
         for i, image in enumerate(self.images[file_slice]):
-            print i
             self.data.append(np.load(image)[self.slices])
         self.preloaded = True
+
+    def __getitem__(self, i):
+        if self.preloaded:
+            return self.data[i]
+        else:
+            return np.load(self.images[i])
 
 class TimeVisualizer(HasTraits):
 
@@ -67,7 +67,6 @@ class TimeVisualizer(HasTraits):
     yslice = Tuple((1, 490, 2), desc='y slice', label='y slice')
     zslice = Tuple((1, 490, 2), desc='z slice', label='z slice')
     update_volume = Button()
-    update_view = Button()
 
     #------------ Arrangement of the GUI -----------------
     panel_group =  Group(
@@ -82,7 +81,6 @@ class TimeVisualizer(HasTraits):
                          Item('yslice', editor=tuped),
                          Item('zslice', editor=tuped),
                          Item('update_volume', show_label=False),
-                         Item('update_view', show_label=False),
                          label='Volume', dock='tab'),
                          layout = 'tabbed',
                          )
@@ -99,19 +97,26 @@ class TimeVisualizer(HasTraits):
         self.filelist = glob(file_pattern)
         self.filelist.sort()
         self.dataset = DataSet(self.filelist)
+        src = self.dataset[0]
+        if max(src.shape) > 200:
+            step = 2
+        else:
+            step = 1
+        self.xslice, self.yslice, self.zslice = (0, src.shape[0], step), \
+                    (0, src.shape[1], step), (0, src.shape[2], step)
         self.dataset.slices = (slice(*self.xslice),
                                             slice(*self.yslice),
                                             slice(*self.zslice))
+        self.configure_traits()
+        self.plot()
             
     def plot(self):
         mlab.clf(figure=self.slices_scene.mayavi_scene)
         self.slices_scene.scene.background = (0, 0, 0)
 
-        self.s = mlab.pipeline.scalar_field(
-            np.load(self.dataset.images[self.dataset.time])[slice(*self.xslice), 
-                                            slice(*self.yslice),
-                                            slice(*self.zslice)].astype(np.float),
-
+        self.s = mlab.pipeline.scalar_field(\
+            self.dataset[self.dataset.time][self.dataset.slices].\
+                    astype(np.float),
                     figure=self.slices_scene.mayavi_scene)
         self.ipw_x = mlab.pipeline.image_plane_widget(self.s,
                 figure=self.slices_scene.mayavi_scene,
@@ -137,17 +142,12 @@ class TimeVisualizer(HasTraits):
     def _update_volume_fired(self):
         self.dataset.slices = (slice(*self.xslice),
                                             slice(*self.yslice),
-                                            slice(*self.zslice)) 
-        action = ThreadedAction(self.dataset, self.s)
-        action.start()
-
-    def _update_view_fired(self):
+                                            slice(*self.zslice))
         self.plot()
 
     def _preloaded_changed(self):
         self.dataset.preloaded = not self.dataset.preloaded
         if self.dataset.preloaded:
-            print self.preload_range
             self.dataset.load_data(slice(*self.preload_range))
         if not self.dataset.preloaded:
             del self.dataset.data
