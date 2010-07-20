@@ -26,7 +26,7 @@ class ThreadedAction(Thread):
 
 class DataSet(object):
 
-    def __init__(self, filelist, preload=True):
+    def __init__(self, filelist):
         self.filelist = filelist 
         self.images = []
         self.slices = None
@@ -46,6 +46,54 @@ class DataSet(object):
             return self.data[i]
         else:
             return np.squeeze(np.load(self.images[i])[self.slices])
+
+class DataSetDeque(DataSet):
+
+    item_nb = 5
+    deque_time = 0
+
+    def load_data(self, file_slice):
+        from collections import deque
+        self.data = deque(maxlen=self.item_nb)
+        self.file_slice = file_slice
+        for i, image in enumerate(self.images[file_slice]\
+            [maximum(0, self.time - self.item_nb/2):\
+                            self.time + self.item_nb/2 + 1]):
+            self.data.append(np.load(image)[self.slices])
+        self.preloaded = True
+        self.deque_time = self.time
+        self.nmax = len(self.images[self.file_slice])
+
+    def refresh(self):
+        if self.time > self.deque_time:
+            new_index = (self.time + self.item_nb/2) % self.nmax
+            image = self.images[self.file_slice][new_index]
+            self.data.append(np.load(image)[self.slices])
+            self.deque_time = self.time
+        else:
+            new_index = (self.time - self.item_nb/2) % self.nmax
+            image = self.images[self.file_slice][new_index]
+            self.data.appendleft(np.load(image)[self.slices])
+            self.deque_time = self.time
+        
+    def __getitem__(self, i):
+        print self.time, self.deque_time
+        if self.preloaded:
+            if self.time < self.nmax/2:
+                if self.time > self.deque_time:
+                    index = - (self.item_nb/2)
+                else:
+                    index = - (self.item_nb/2 + 2)
+            else:
+                if self.time > self.deque_time:
+                    index = self.item_nb/2 + 1
+                else:
+                    index = self.item_nb/2 - 1
+            data = self.data[index]
+            self.refresh()
+            return data
+        else:
+            return np.squeeze(np.load(self.images[i])[self.slices]) 
 
 class TimeVisualizer(HasTraits):
 
@@ -96,7 +144,7 @@ class TimeVisualizer(HasTraits):
     def __init__(self, file_pattern):
         self.filelist = glob(file_pattern)
         self.filelist.sort()
-        self.dataset = DataSet(self.filelist)
+        self.dataset = DataSetDeque(self.filelist)
         src = self.dataset[0]
         if max(src.shape) > 200:
             step = 2
@@ -152,6 +200,14 @@ class TimeVisualizer(HasTraits):
             del self.dataset.data
 
 
-tv = TimeVisualizer('data/data*.npy')
+if __name__ == '__main__':
+    """
+    from glob import glob
+    if glob('data/data*.npy') == []:
+        print "generating some synthetic data..."
+        from generate_data import generate_big_data
+        generate_big_data(l=60, t=10)
+    """
+    tv = TimeVisualizer('data/data*.npy')
 
 
