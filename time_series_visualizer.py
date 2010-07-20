@@ -20,8 +20,7 @@ class ThreadedAction(Thread):
         self.dataset = dataset
 
     def run(self):
-        slices = self.dataset.slices
-        new_data = self.dataset[self.dataset.time][slices]
+        new_data = self.dataset[self.dataset.time]
         GUI.invoke_later(setattr, self.scalar_field.mlab_source, 'scalars',
         new_data)
 
@@ -30,6 +29,7 @@ class DataSet(object):
     def __init__(self, filelist, preload=True):
         self.filelist = filelist 
         self.images = []
+        self.slices = None
         for filename in self.filelist:
             self.images.append(filename)
         self.time = 0
@@ -45,7 +45,7 @@ class DataSet(object):
         if self.preloaded:
             return self.data[i]
         else:
-            return np.load(self.images[i])
+            return np.squeeze(np.load(self.images[i])[self.slices])
 
 class TimeVisualizer(HasTraits):
 
@@ -90,7 +90,7 @@ class TimeVisualizer(HasTraits):
                     editor=SceneEditor(scene_class=MayaviScene)),
                 panel_group,
                 ),                         
-                resizable=True, title='Glass batch tomography'
+                resizable=True, title='Time evolution'
                          )
 
     def __init__(self, file_pattern):
@@ -115,8 +115,7 @@ class TimeVisualizer(HasTraits):
         self.slices_scene.scene.background = (0, 0, 0)
 
         self.s = mlab.pipeline.scalar_field(\
-            self.dataset[self.dataset.time][self.dataset.slices].\
-                    astype(np.float),
+            self.dataset[self.dataset.time].astype(np.float),
                     figure=self.slices_scene.mayavi_scene)
         self.ipw_x = mlab.pipeline.image_plane_widget(self.s,
                 figure=self.slices_scene.mayavi_scene,
