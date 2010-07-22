@@ -141,10 +141,10 @@ class TimeVisualizer(HasTraits):
                 resizable=True, title='Time evolution'
                          )
 
-    def __init__(self, file_pattern):
+    def __init__(self, file_pattern, dataset_type=DataSet):
         self.filelist = glob(file_pattern)
         self.filelist.sort()
-        self.dataset = DataSetDeque(self.filelist)
+        self.dataset =  dataset_type(self.filelist)
         src = self.dataset[0]
         if max(src.shape) > 200:
             step = 2
@@ -208,6 +208,6 @@ if __name__ == '__main__':
         from generate_data import generate_big_data
         generate_big_data(l=60, t=10)
     """
-    tv = TimeVisualizer('data/data*.npy')
+    tv = TimeVisualizer('data/quarters*.npy')
 
 
