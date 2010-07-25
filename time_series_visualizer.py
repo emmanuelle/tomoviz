@@ -6,7 +6,6 @@
 
 
 import numpy as np
-import scipy
 from glob import glob
 from threading import Thread
 from enthought.mayavi import mlab
@@ -28,7 +27,6 @@ class ThreadedAction(Thread):
 
     def run(self):
         new_data = self.dataset[self.dataset.time]
-        print self.dataset.time
         GUI.invoke_later(setattr, self.scalar_field.mlab_source, 'scalars',
         new_data)
 
@@ -60,6 +58,10 @@ class DataSet(HasTraits):
 
 
 class DataSetDeque(DataSet):
+    """
+    Do not use this class as it now, it can lead to embarrassing
+    race conditions.
+    """
 
     item_nb = 5
     deque_time = 0
