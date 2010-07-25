@@ -1,11 +1,18 @@
+
+
+# Author: Emmanuelle Gouillart <emmanuelle.gouillart@normalesup.org> 
+# Copyright (c) 2010, Emmanuelle Gouillart
+# License: BSD Style.
+
+
 import numpy as np
 import scipy
 from glob import glob
 from threading import Thread
 from enthought.mayavi import mlab
 from enthought.traits.api import HasTraits, Instance, Array, \
-    File, Bool, Int, Enum, Button, Tuple, on_trait_change
-from enthought.traits.ui.api import View, Item, HGroup, Group
+    File, Bool, Int, Range, Enum, Button, Tuple, on_trait_change
+from enthought.traits.ui.api import View, Item, HGroup, Group, RangeEditor
 from enthought.tvtk.pyface.scene_model import SceneModel
 from enthought.tvtk.pyface.scene_editor import SceneEditor
 from enthought.traits.ui.api import TupleEditor, Include
@@ -24,7 +31,10 @@ class ThreadedAction(Thread):
         GUI.invoke_later(setattr, self.scalar_field.mlab_source, 'scalars',
         new_data)
 
-class DataSet(object):
+
+class DataSet(HasTraits):
+
+    time = Range(0, 10, 1)
 
     def __init__(self, filelist):
         self.filelist = filelist 
@@ -46,6 +56,7 @@ class DataSet(object):
             return self.data[i]
         else:
             return np.squeeze(np.load(self.images[i])[self.slices])
+
 
 class DataSetDeque(DataSet):
 
@@ -95,13 +106,37 @@ class DataSetDeque(DataSet):
         else:
             return np.squeeze(np.load(self.images[i])[self.slices]) 
 
+
 class TimeVisualizer(HasTraits):
+    """
+    A GUI for 3-D visualization and exploration of a time series of 3-D images.
+    
+    The current image is visualized with two perpendicular image plane widgets,
+    and it is possible to navigate in the time series by clicking on the next 
+    and previous buttons of the GUI, that update the data source in the Mayavi
+    pipeline with the corresponding image of the time series. 
+
+    In order to have a smooth transition when the visualization is updated, 
+    we update the date source in a separate thread, using the 
+    GUI.invoke_later method. See 
+    http://code.enthought.com/projects/mayavi/docs/development/html/mayavi/auto/example_compute_in_thread.html
+    for an example of how to use threads to update the Mayavi pipeline.
+
+    For faster loading and updating of images, it is possible to preload 
+    the 3-D images (which are initially stored in files) as numpy arrays
+    in memory, which are accessed faster.
+
+    The volume of interest can be defined in the volume tab of the GUI
+    by defining slices through the 3-D volumes.
+    """
 
     #----------- Components of the GUI -----------------
-    slices_scene = Instance(MlabSceneModel, ())
+    slices_scene = Instance(MlabSceneModel, ()) 
 
     # Time evolution tab
-    time = Int()
+    time = Range(0, 10, 1)
+    high = Int(10)
+    othertime = Range(0, 5, 1)
     tuped = TupleEditor(cols=1)
     next = Button()
     previous = Button()
@@ -120,7 +155,11 @@ class TimeVisualizer(HasTraits):
     panel_group =  Group(
                 Group(
                     '_', Item('step'), Item('previous', show_label=False),
-                         Item('next', show_label=False), Item('time'),
+                         Item('next', show_label=False), 
+                         Item('time',
+                             editor = RangeEditor(high_name='high',
+                                                format='%i',
+                                                mode='spinner')),
                          Item('preloaded'), 
                          Item('preload_range', editor=tuped),
                          label='Evolution', dock='tab'),
@@ -141,10 +180,28 @@ class TimeVisualizer(HasTraits):
                 resizable=True, title='Time evolution'
                          )
 
+
     def __init__(self, file_pattern, dataset_type=DataSet):
+        """
+        Load a timeseries of 3-D volumes. 
+
+        Parameters
+        ----------
+
+        file_pattern: string
+            Pathname pattern corresponding to the timeseries to be
+            visualized
+
+        dataset: class name
+            Name of a class that manipulates the timeseries data. 
+            dataset must have a _getitem_ method in order to be indexed, 
+            and a _load_data method in order to preload numpy arrays in 
+            memory.
+        """
         self.filelist = glob(file_pattern)
         self.filelist.sort()
         self.dataset =  dataset_type(self.filelist)
+        self.high = len(self.filelist)
         src = self.dataset[0]
         if max(src.shape) > 200:
             step = 2
@@ -155,10 +212,13 @@ class TimeVisualizer(HasTraits):
         self.dataset.slices = (slice(*self.xslice),
                                             slice(*self.yslice),
                                             slice(*self.zslice))
-        self.configure_traits()
-        self.plot()
+        self.sync_trait('time', self.dataset)
             
     def plot(self):
+        """
+        Visualize the current data volume with two perpendicular
+        image plane widgets.
+        """
         mlab.clf(figure=self.slices_scene.mayavi_scene)
         self.slices_scene.scene.background = (0, 0, 0)
 
@@ -174,6 +234,9 @@ class TimeVisualizer(HasTraits):
         self.ipw_x.parent.scalar_lut_manager.lut_mode = 'gist_gray'
 
     def _next_fired(self):
+        """
+            Update the visualization with the next volume in the dataset.
+        """
         self.dataset.time += self.step
         self.time = self.dataset.time
         action = ThreadedAction(self.dataset, self.s) 
@@ -181,12 +244,18 @@ class TimeVisualizer(HasTraits):
 
 
     def _previous_fired(self):
+        """
+            Update the visualization with the previous volume in the dataset.
+        """
         self.dataset.time -= self.step
         self.time = self.dataset.time
         action = ThreadedAction(self.dataset, self.s) 
         action.start()
 
     def _update_volume_fired(self):
+        """
+            Resample the volume with user-defined slices.
+        """
         self.dataset.slices = (slice(*self.xslice),
                                             slice(*self.yslice),
                                             slice(*self.zslice))
@@ -209,5 +278,7 @@ if __name__ == '__main__':
         generate_big_data(l=60, t=10)
     """
     tv = TimeVisualizer('data/quarters*.npy')
+    tv.configure_traits()
+    tv.plot()
 
 
