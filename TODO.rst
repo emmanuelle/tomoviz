@@ -9,3 +9,6 @@
 
 * Add keyword l_max in TimeVisualizer constructor to specify the size in
   pixels over which we sample by default.   
+
+* Modify the DataSet class to have a generic loading function (can be
+  np.load, tb.openFile, etc)
