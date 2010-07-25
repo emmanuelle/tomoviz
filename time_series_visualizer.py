@@ -11,7 +11,7 @@ from glob import glob
 from threading import Thread
 from enthought.mayavi import mlab
 from enthought.traits.api import HasTraits, Instance, Array, \
-    File, Bool, Int, Range, Enum, Button, Tuple, on_trait_change
+    File, Bool, Int, Range, Enum, Button, Tuple, List, on_trait_change
 from enthought.traits.ui.api import View, Item, HGroup, Group, RangeEditor
 from enthought.tvtk.pyface.scene_model import SceneModel
 from enthought.tvtk.pyface.scene_editor import SceneEditor
@@ -28,13 +28,14 @@ class ThreadedAction(Thread):
 
     def run(self):
         new_data = self.dataset[self.dataset.time]
+        print self.dataset.time
         GUI.invoke_later(setattr, self.scalar_field.mlab_source, 'scalars',
         new_data)
 
 
 class DataSet(HasTraits):
 
-    time = Range(0, 10, 1)
+    time = Int(0)
 
     def __init__(self, filelist):
         self.filelist = filelist 
@@ -134,16 +135,16 @@ class TimeVisualizer(HasTraits):
     slices_scene = Instance(MlabSceneModel, ()) 
 
     # Time evolution tab
-    time = Range(0, 10, 1)
-    high = Int(10)
-    othertime = Range(0, 5, 1)
+    time = Int
     tuped = TupleEditor(cols=1)
+    low = Int(0)
+    high = Int(10)
     next = Button()
     previous = Button()
     step = Int(1, desc='time step used for loading next and previous states',
             label="step")
     preloaded = Bool(False)
-    preload_range = Tuple((0, -1, 1), desc="files to preload", label='files')
+    preload_range = List((0, -1, 1), desc="files to preload", label='files')
     
     # Volume selection tab
     xslice = Tuple((1, 500, 2), desc='x slice', label='x slice')
@@ -151,17 +152,18 @@ class TimeVisualizer(HasTraits):
     zslice = Tuple((1, 490, 2), desc='z slice', label='z slice')
     update_volume = Button()
 
-    #------------ Arrangement of the GUI -----------------
+    #------------ Layout of the GUI -----------------
     panel_group =  Group(
                 Group(
                     '_', Item('step'), Item('previous', show_label=False),
                          Item('next', show_label=False), 
                          Item('time',
-                             editor = RangeEditor(high_name='high',
+                             editor = RangeEditor(low_name='low',
+                                                high_name='high',
                                                 format='%i',
                                                 mode='spinner')),
                          Item('preloaded'), 
-                         Item('preload_range', editor=tuped),
+                         Item('preload_range'),
                          label='Evolution', dock='tab'),
                 Group(
                          Item('xslice', editor=tuped),   
@@ -202,6 +204,7 @@ class TimeVisualizer(HasTraits):
         self.filelist.sort()
         self.dataset =  dataset_type(self.filelist)
         self.high = len(self.filelist)
+        self.preload_range[1] = len(self.filelist) - 1
         src = self.dataset[0]
         if max(src.shape) > 200:
             step = 2
@@ -237,7 +240,7 @@ class TimeVisualizer(HasTraits):
         """
             Update the visualization with the next volume in the dataset.
         """
-        self.dataset.time += self.step
+        self.time += self.step
         self.time = self.dataset.time
         action = ThreadedAction(self.dataset, self.s) 
         action.start()
@@ -247,8 +250,7 @@ class TimeVisualizer(HasTraits):
         """
             Update the visualization with the previous volume in the dataset.
         """
-        self.dataset.time -= self.step
-        self.time = self.dataset.time
+        self.time -= self.step
         action = ThreadedAction(self.dataset, self.s) 
         action.start()
 
@@ -264,20 +266,21 @@ class TimeVisualizer(HasTraits):
     def _preloaded_changed(self):
         self.dataset.preloaded = not self.dataset.preloaded
         if self.dataset.preloaded:
-            self.dataset.load_data(slice(*self.preload_range))
+            _tmp_list = self.preload_range[:]
+            _tmp_list[1] += 1
+            self.dataset.load_data(slice(*_tmp_list))
         if not self.dataset.preloaded:
             del self.dataset.data
 
 
+
 if __name__ == '__main__':
-    """
     from glob import glob
     if glob('data/data*.npy') == []:
         print "generating some synthetic data..."
         from generate_data import generate_big_data
-        generate_big_data(l=60, t=10)
-    """
-    tv = TimeVisualizer('data/quarters*.npy')
+        generate_big_data(l=60, t=15)
+    tv = TimeVisualizer('data/data*.npy')
     tv.configure_traits()
     tv.plot()
 
