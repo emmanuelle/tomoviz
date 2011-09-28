@@ -118,7 +118,7 @@ class TimeVisualizer(HasTraits):
     previous = Button()
     step = Int(1, desc='time step used for loading next and previous states',
             label="step")
-    preloaded = Bool(False)
+    preloaded = Bool(False, desc="check for loading images in memory")
     preload_range = List((0, -1, 1), desc="files to preload", label='files')
     
     # Volume selection tab
@@ -169,11 +169,33 @@ class TimeVisualizer(HasTraits):
             Pathname pattern corresponding to the timeseries to be
             visualized
 
-        dataset: class name
-            Name of a class that manipulates the timeseries data. 
-            dataset must have a _getitem_ method in order to be indexed, 
-            and a _load_data method in order to preload numpy arrays in 
-            memory.
+        mode: string {'h5', 'npy', raw'}
+            Format of the 3-D images. Default:'h5'
+
+        name: string
+            For hdf5 images only, name of the object to be loaded
+
+        dtype: data-type
+            For raw images only, data type of the image.
+
+        shape: tuple
+            For raw images only, shape of the images.
+
+        Examples
+        --------
+        >>> # Visualize images stored in hdf5 format
+        >>> tv_h5 = TimeVisualizer('data/data*.h5', mode='h5', name='image')
+        >>> # Launch the graphical interface and plot the data
+        >>> tv_h5.configure_traits()
+        >>> tv_h5.plot()
+
+        >>> # Visualize images stored in npy format
+        >>> tv_npy = TimeVisualizer('data/data*.npy', mode='npy')
+        >>> # Visualize images stored in raw format
+        >>> # For raw images one must provide the shape and data type
+        >>> tv_raw = TimeVisualizer('data/data*.raw', mode='raw', 
+                    dtype=np.float, shape=(60, 60, 60))
+        
         """
         self.filelist = glob(file_pattern)
         self.filelist.sort()
