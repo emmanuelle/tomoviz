@@ -7,6 +7,7 @@
 
 import numpy as np
 from glob import glob
+import tables as tb
 from threading import Thread
 from enthought.mayavi import mlab
 from enthought.traits.api import HasTraits, Instance, Array, \
@@ -30,12 +31,23 @@ class ThreadedAction(Thread):
         GUI.invoke_later(setattr, self.scalar_field.mlab_source, 'scalars',
         new_data)
 
+def h5_load(filename, name):
+    f = tb.openFile(filename, 'r')
+    data = getattr(f.root, name)[:]
+    f.close()
+    return data
+
+def raw_load(filename, dtype, shape):
+    tmp = np.fromfile(filename, dtype=dtype)
+    tmp.shape = shape
+    return tmp
 
 class DataSet(HasTraits):
 
     time = Int(0)
 
-    def __init__(self, filelist):
+    def __init__(self, filelist, mode='h5', name='data', dtype=None, 
+                            shape=None):
         self.filelist = filelist 
         self.images = []
         self.slices = None
@@ -43,25 +55,38 @@ class DataSet(HasTraits):
             self.images.append(filename)
         self.time = 0
         self.preloaded = False
-        
+        if mode == 'npy':
+            self.load = np.load
+        if mode == 'h5':
+            self.load = lambda x: h5_load(x, name)
+        if mode == 'raw':
+            self.load = lambda x: raw_load(x, dtype, shape)
+
     def load_data(self, file_slice):
         self.data = []
+        print("%d files to be loaded" % len(self.images[file_slice]))
+        print("This might take some time...")
         for i, image in enumerate(self.images[file_slice]):
-            self.data.append(np.load(image)[self.slices])
+            print("loading file %d" % i)
+            self.data.append(self.load(image)[self.slices])
         self.preloaded = True
 
     def __getitem__(self, i):
         if self.preloaded:
             return self.data[i]
         else:
-            return np.squeeze(np.load(self.images[i])[self.slices])
+            return np.squeeze(self.load(self.images[i])[self.slices])
 
 
 
 class TimeVisualizer(HasTraits):
     """
     A GUI for 3-D visualization and exploration of a time series of 3-D images.
-    
+   
+    Different formats are possible for the images: hdf5, npy, raw data. 
+    Depending on the format, additional information may have to be
+    provided.
+
     The current image is visualized with two perpendicular image plane widgets,
     and it is possible to navigate in the time series by clicking on the next 
     and previous buttons of the GUI, that update the data source in the Mayavi
@@ -133,7 +158,7 @@ class TimeVisualizer(HasTraits):
                          )
 
 
-    def __init__(self, file_pattern, dataset_type=DataSet):
+    def __init__(self, file_pattern, **kwargs):
         """
         Load a timeseries of 3-D volumes. 
 
@@ -152,7 +177,7 @@ class TimeVisualizer(HasTraits):
         """
         self.filelist = glob(file_pattern)
         self.filelist.sort()
-        self.dataset =  dataset_type(self.filelist)
+        self.dataset =  DataSet(self.filelist, **kwargs)
         self.high = len(self.filelist)
         self.preload_range[1] = len(self.filelist) - 1
         src = self.dataset[0]
@@ -222,16 +247,5 @@ class TimeVisualizer(HasTraits):
         if not self.dataset.preloaded:
             del self.dataset.data
 
-
-
-if __name__ == '__main__':
-    from glob import glob
-    if glob('data/data*.npy') == []:
-        print "generating some synthetic data..."
-        from generate_data import generate_big_data
-        generate_big_data(l=60, t=15)
-    tv = TimeVisualizer('data/data*.npy')
-    tv.configure_traits()
-    tv.plot()
 
 
