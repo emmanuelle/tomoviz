@@ -119,7 +119,9 @@ class TimeVisualizer(HasTraits):
     step = Int(1, desc='time step used for loading next and previous states',
             label="step")
     preloaded = Bool(False, desc="check for loading images in memory")
-    preload_range = List((0, -1, 1), desc="files to preload", label='files')
+    preload_range = Tuple((0, 100, 1), desc="files to preload", label='files',
+            labels=['first file\n to preload', 'last file\n to preload', 
+                    'step'])
     
     # Volume selection tab
     xslice = Tuple((1, 500, 2), desc='x slice', label='x slice')
@@ -201,7 +203,7 @@ class TimeVisualizer(HasTraits):
         self.filelist.sort()
         self.dataset =  DataSet(self.filelist, **kwargs)
         self.high = len(self.filelist)
-        self.preload_range[1] = len(self.filelist) - 1
+        #self.preload_range[1] = len(self.filelist) - 1
         src = self.dataset[0]
         if max(src.shape) > 200:
             step = 2
@@ -260,14 +262,12 @@ class TimeVisualizer(HasTraits):
                                             slice(*self.zslice))
         self.plot()
 
+
     def _preloaded_changed(self):
         self.dataset.preloaded = not self.dataset.preloaded
         if self.dataset.preloaded:
-            _tmp_list = self.preload_range[:]
-            _tmp_list[1] += 1
-            self.dataset.load_data(slice(*_tmp_list))
+            print self.preload_range
+            self.dataset.load_data(slice(*self.preload_range))
         if not self.dataset.preloaded:
             del self.dataset.data
-
-
 
