@@ -8,6 +8,9 @@ next and a previous button. See the example in the main.
 generate_data: utility functions to generate synthetic datasets used for
 testing the application.
 
+.. image:: tomo1.png
+    :align: center
+
 License
 -------
 
