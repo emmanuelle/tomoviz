@@ -57,58 +57,6 @@ class DataSet(HasTraits):
             return np.squeeze(np.load(self.images[i])[self.slices])
 
 
-class DataSetDeque(DataSet):
-    """
-    Do not use this class as it now, it can lead to embarrassing
-    race conditions.
-    """
-
-    item_nb = 5
-    deque_time = 0
-
-    def load_data(self, file_slice):
-        from collections import deque
-        self.data = deque(maxlen=self.item_nb)
-        self.file_slice = file_slice
-        for i, image in enumerate(self.images[file_slice]\
-            [maximum(0, self.time - self.item_nb/2):\
-                            self.time + self.item_nb/2 + 1]):
-            self.data.append(np.load(image)[self.slices])
-        self.preloaded = True
-        self.deque_time = self.time
-        self.nmax = len(self.images[self.file_slice])
-
-    def refresh(self):
-        if self.time > self.deque_time:
-            new_index = (self.time + self.item_nb/2) % self.nmax
-            image = self.images[self.file_slice][new_index]
-            self.data.append(np.load(image)[self.slices])
-            self.deque_time = self.time
-        else:
-            new_index = (self.time - self.item_nb/2) % self.nmax
-            image = self.images[self.file_slice][new_index]
-            self.data.appendleft(np.load(image)[self.slices])
-            self.deque_time = self.time
-        
-    def __getitem__(self, i):
-        print self.time, self.deque_time
-        if self.preloaded:
-            if self.time < self.nmax/2:
-                if self.time > self.deque_time:
-                    index = - (self.item_nb/2)
-                else:
-                    index = - (self.item_nb/2 + 2)
-            else:
-                if self.time > self.deque_time:
-                    index = self.item_nb/2 + 1
-                else:
-                    index = self.item_nb/2 - 1
-            data = self.data[index]
-            self.refresh()
-            return data
-        else:
-            return np.squeeze(np.load(self.images[i])[self.slices]) 
-
 
 class TimeVisualizer(HasTraits):
     """
