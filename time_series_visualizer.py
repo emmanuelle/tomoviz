@@ -68,7 +68,7 @@ class DataSet(HasTraits):
         print("This might take some time...")
         for i, image in enumerate(self.images[file_slice]):
             print("loading file %d" % i)
-            self.data.append(self.load(image)[self.slices])
+            self.data.append(np.copy(self.load(image)[self.slices]))
         self.preloaded = True
 
     def __getitem__(self, i):
