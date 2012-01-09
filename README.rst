@@ -12,6 +12,10 @@ next and a previous button. See the example in `test_visualizer.py`
 generate_data: utility functions to generate synthetic datasets used for
 testing the application.
 
+Documentation
+-------------
+
+https://github.com/emmanuelle/tomoviz/wiki/howto
 
 License
 -------
@@ -21,4 +25,4 @@ new BSD (see LICENSE.txt)
 Contact
 -------
 
-emmanuelle.gouillart@normalesup.org
+emmanuelle.gouillart@nsup.org
